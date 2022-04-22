@@ -1,0 +1,382 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class PlayerController : MonoBehaviour
+{
+    [SerializeField]
+    private GameManager Manager;
+
+    [SerializeField]
+    private float playerRotateSpeed;
+
+    [SerializeField]
+    private float SaveJumpCount;
+
+    [SerializeField]
+    private float animSpeed;
+
+    [SerializeField]
+    private float m_fMagnetRange;
+
+    [SerializeField]
+    private GameObject playerColorObj;
+
+    [SerializeField]
+    private GameObject playerManget;
+
+    [SerializeField]
+    private GameObject ComboScoreManager;
+
+    public SkinnedMeshRenderer playerRenderer;
+
+    public float playerSpeed;
+    public float jumpPower;
+
+    private float TouchTime;
+    private float GabTime;
+
+    public int Rainbownbr = 0;
+
+    private float playerSpeedSave;
+    private float playerRotateSave;
+    private float JumpCount;
+    private float minSwipeDist;
+    private float TouchJumpDist;
+    private float TouchSlideDist;
+
+    private Vector3 StartTrans;
+    private Vector3 CurTrans;
+
+    public bool isOverPower = false;
+    public bool isRainBow = false;
+    public bool isSlide = false;
+    public bool isJump = false;
+    public bool isDoubleJump = false;
+    public bool isDown = false;
+    public bool isPlay = false;
+
+    public Vector3 vStartPos;
+    public Vector3 vEndPos;
+    public Vector3 vRotatepos;
+
+    private Animator anim;
+
+    Rigidbody rid;
+    CapsuleCollider col;
+    ComboScript combo;
+    ScoreManager Score;
+
+    [SerializeField]
+    private AudioClip audioJump;
+
+    [SerializeField]
+    private AudioClip audioSlide;
+
+    [SerializeField]
+    private AudioClip audioFallDown;
+
+    [SerializeField]
+    private AudioClip audioGet;
+
+    [SerializeField]
+    private AudioClip audioRainbow;
+
+    new AudioSource audio;
+
+    private void Start()
+    {
+        isPlay = false;
+        playerManget.SetActive(false);
+
+        StartTrans = this.transform.position;
+
+        anim = GetComponent<Animator>();
+        rid = GetComponent<Rigidbody>();
+        col = GetComponent<CapsuleCollider>();
+        audio = GetComponent<AudioSource>();
+
+        combo = ComboScoreManager.GetComponent<ComboScript>();
+        Score = ComboScoreManager.GetComponent<ScoreManager>();
+
+        playerRenderer = playerColorObj.GetComponent<SkinnedMeshRenderer>();
+
+        Vector2 screenSize = new Vector2(Screen.width, Screen.height);
+        minSwipeDist = Mathf.Max(screenSize.x, screenSize.y) / 16f;
+
+        JumpCount = SaveJumpCount;
+    }
+
+    private void FixedUpdate()
+    {
+        if (isPlay)
+        {
+            CurTrans = this.transform.position;
+            PlayerMove();
+            int moveScore = (int)(CurTrans.z - StartTrans.z) + (combo.curCombo / 10);
+            Score.CurScore = moveScore + Score.BonusScore;
+        }
+    }
+
+    private void PlayerMove()
+    {
+        if (!Manager.isEnd)
+        {
+            anim.SetBool("Run", true);
+            Vector3 VerMove = this.transform.forward * (playerSpeed + Rainbownbr)  * Time.deltaTime;
+            anim.speed = animSpeed;
+            transform.position += VerMove;
+
+            if (!isDown)
+            {
+                if (Input.touchCount > 0)
+                {
+                    Touch t = Input.GetTouch(0);
+
+                    if (t.phase == TouchPhase.Began)
+                    {
+                        vStartPos = t.position;
+                        //TouchTime = Time.time;
+                    }
+
+                    if (t.phase == TouchPhase.Moved)
+                    {
+                        vEndPos = t.position;
+                        TouchJumpDist = vEndPos.x - vStartPos.x;
+                        TouchSlideDist = vEndPos.y - vStartPos.y;
+                        vRotatepos = vEndPos - vStartPos;
+
+                        if (TouchJumpDist >= minSwipeDist || TouchJumpDist <= -minSwipeDist)
+                            transform.Translate(vRotatepos.normalized.x * playerRotateSpeed, 0, 0);
+
+                        else if (TouchSlideDist > minSwipeDist * 2)
+                        {
+                            if (!isRainBow)
+                            {
+                                if (!isJump)
+                                    StartCoroutine(PlayerJumpCoroutine());                               
+                            }
+                            if (!isRainBow)
+                            {
+                                StartCoroutine(PlayerSliding());
+                            }
+                        }
+                        else if (TouchSlideDist < -(minSwipeDist * 2))
+                        {
+                            if (!isRainBow)
+                            {
+                                StartCoroutine(PlayerSliding());
+                            }
+                        }
+                    }
+
+                    if (t.phase == TouchPhase.Ended)
+                    {
+                        //GabTime = Time.time - TouchTime;
+
+                        //if (GabTime < 0.3f)
+                        //{
+                        //    if (!isJump)
+                        //    {
+                        //        JumpCount--;
+                        //        StartCoroutine(PlayerJumpCoroutine());
+                        //    }
+                        //}
+                    }
+                }
+            }
+        }
+
+        if (Manager.isEnd)
+        {
+            anim.SetBool("Walk", false);
+        }
+    }
+
+    IEnumerator PlayerJumpCoroutine()
+    {
+        if (!isSlide)
+        {
+            isJump = true;
+            vStartPos = vEndPos;
+
+            audio.clip = audioJump;
+            audio.Play();
+
+            rid.AddForce(Vector3.up * jumpPower);
+            anim.SetBool("Jump",true);
+            yield return new WaitForSeconds(0.1f);
+            anim.SetBool("Jump", false);
+        }
+    }
+
+    //IEnumerator DoubleJumpCoroutine()
+    //{
+    //    if (!isDoubleJump)
+    //    {
+    //        audio.clip = audioJump;
+    //        audio.Play();
+
+    //        rid.AddForce(Vector3.up * jumpPower);
+    //        anim.SetBool("DoubleJump",true);
+    //        yield return new WaitForSeconds(0.1f);
+    //        anim.SetBool("DoubleJump", false);
+    //        isDoubleJump = true;
+    //    }
+    //}
+
+    IEnumerator PlayerSliding()
+    {
+        if (!isSlide)
+        {
+            if (!isJump)
+            {
+                audio.clip = audioSlide;
+                audio.Play();
+
+                anim.SetTrigger("Slide");
+                isSlide = true;
+
+                col.height *= 0.8f;
+                yield return new WaitForSeconds(1f);
+                col.height *= 1.25f;
+                isSlide = false;
+            }
+        }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+        {
+            isJump = false;
+            isDoubleJump = false;
+            JumpCount = SaveJumpCount;
+        }
+
+        if (collision.gameObject.layer == LayerMask.NameToLayer("Obstacle"))
+        {
+            Destroy(collision.gameObject);
+
+            if (!isRainBow)
+            {
+                if (!isOverPower)
+                {
+                    audio.clip = audioFallDown;
+                    audio.Play();
+
+                    combo.ResetCombo();
+                    if (Manager.OriGage.m_nGage >= 10)
+                        Manager.OriGage.m_nGage -= 10;
+                    else
+                        this.gameObject.SetActive(false);
+                    StartCoroutine(BumpObstacleCoroutine());
+                }
+            }
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.gameObject.layer == LayerMask.NameToLayer("Paint"))
+        {
+            MeshRenderer paintrender = other.gameObject.GetComponent<MeshRenderer>();
+
+            if (!isRainBow)
+            {
+                if (paintrender.material.color == Manager.OriGage.GageSprite.color)
+                {
+                    Debug.Log("collision");
+
+                    audio.clip = audioGet;
+                    audio.Play();
+
+                    combo.IncreaseCombo();
+                    Score.BonusScore += (20 * (Rainbownbr + 1 + combo.curCombo));
+                    if (Manager.OriGage.m_nGage < 95)
+                        Manager.OriGage.m_nGage += 20;
+                    else
+                        Manager.OriGage.m_nGage = 100;
+
+                }
+                else
+                {
+                    combo.ResetCombo();
+                    if (Manager.OriGage.m_nGage > 3)
+                        Manager.OriGage.m_nGage -= 3;
+                    else
+                        Manager.OriGage.m_nGage = 0;
+                }
+                Destroy(other.gameObject);
+            }
+
+            else
+            {
+
+                if (audio.clip == audioRainbow && !audio.isPlaying)
+                {
+                    audio.clip = audioGet;
+                    audio.Play();
+                }
+
+                if (audio.clip != audioRainbow)
+                {
+                    audio.clip = audioGet;
+                    audio.Play();
+                }
+
+                combo.IncreaseCombo();
+                Score.BonusScore += (20 * (Rainbownbr + 1 + combo.curCombo));
+                Destroy(other.gameObject);
+            }
+        }
+    }
+
+    IEnumerator BumpObstacleCoroutine()
+    {
+        if (!isOverPower)
+        {
+            isOverPower = true;
+            isDown = true;
+
+            playerSpeedSave = playerSpeed;
+            playerSpeed = -Rainbownbr;
+            anim.SetTrigger("FallDown");
+
+            yield return new WaitForSeconds(2f);
+
+            playerSpeed = playerSpeedSave;
+            isDown = false;
+            isOverPower = false;
+        }
+    }
+
+    public void OnRainbowTime()
+    {
+        playerManget.SetActive(true);
+        col.radius *= 2;
+
+        audio.clip = audioRainbow;
+        audio.Play();
+
+        playerSpeedSave = playerSpeed;
+        playerRotateSave = playerRotateSpeed;
+
+        playerSpeed += 20;
+        playerRotateSpeed += 0.1f;
+
+        animSpeed += 1.0f;
+    }
+
+    public void OffRainbowTime()
+    {
+        playerManget.SetActive(false);
+        col.radius /= 2;
+
+        playerSpeed = playerSpeedSave;
+        playerRotateSpeed = playerRotateSave;
+
+        animSpeed -= 1.0f;
+    }
+}
